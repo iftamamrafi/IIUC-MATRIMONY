@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "Profile": {
+      "title": "User Profile",
+      "description": "Public and private information about a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Display ID like IIUC-1023" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "age": { "type": "integer" },
+        "department": { "type": "string" },
+        "batch": { "type": "string" },
+        "height": { "type": "string" },
+        "maritalStatus": { "type": "string" },
+        "religiousPractice": { "type": "string" },
+        "prayerRegularity": { "type": "string" },
+        "beardHijabStatus": { "type": "string" },
+        "quranReading": { "type": "string" },
+        "familyBackground": { "type": "string" },
+        "guardianContact": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "photoPrivacy": { "type": "string", "enum": ["public", "interest_accepted", "hidden"] },
+        "isVerified": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "gender", "age", "department"]
+    },
+    "Interest": {
+      "title": "Expression of Interest",
+      "description": "A record of one user expressing interest in another.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "receiverId", "status"]
+    },
+    "Message": {
+      "title": "Chat Message",
+      "description": "A single message in a conversation.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "text", "createdAt"]
+    },
+    "Conversation": {
+      "title": "Conversation Metadata",
+      "description": "Metadata for a chat between two users.",
+      "type": "object",
+      "properties": {
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "lastMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/profiles/{uid}": {
+      "schema": "Profile",
+      "description": "User profiles indexed by their Firebase Auth UID."
+    },
+    "/profiles/{uid}/private/info": {
+      "schema": "object",
+      "description": "Personally Identifiable Information like Guardian Contact and Email."
+    },
+    "/interests/{interestId}": {
+      "schema": "Interest",
+      "description": "Interests sent between users."
+    },
+    "/conversations/{conversationId}": {
+      "schema": "Conversation",
+      "description": "Metadata for chats."
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages within a specific conversation."
+    }
+  }
+}

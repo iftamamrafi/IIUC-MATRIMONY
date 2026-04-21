@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // Profile Helpers
+    function isValidProfile(data) {
+      return (data.userId is string && data.userId.size() <= 64) &&
+             (data.gender in ['male', 'female']) &&
+             (data.age == null || (data.age is int && data.age >= 18 && data.age <= 100)) &&
+             (data.department == null || (data.department is string && data.department.size() <= 100)) &&
+             (data.photoPrivacy == null || data.photoPrivacy in ['public', 'interest_accepted', 'hidden']) &&
+             (!('isVerified' in data) || data.isVerified == false); // Regular users can't set isVerified: true
+    }
+
+    match /profiles/{uid} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isOwner(uid) && isValidProfile(incoming()) && incoming().createdAt == request.time;
+      allow update: if isOwner(uid) && isValidProfile(incoming()) && 
+                       incoming().userId == existing().userId && 
+                       incoming().createdAt == existing().createdAt &&
+                       (incoming().diff(existing()).affectedKeys().hasOnly([
+                         'fullName', 'age', 'height', 'maritalStatus', 'religiousPractice',
+                         'prayerRegularity', 'beardHijabStatus', 'quranReading', 'familyBackground',
+                         'guardianContact', 'photoUrl', 'photoPrivacy', 'department', 'batch',
+                         'profileCompleted', 'updatedAt'
+                       ])) && incoming().updatedAt == request.time;
+    }
+
+    // Interest Helpers
+    function isValidInterest(data) {
+      return data.senderId == request.auth.uid &&
+             data.receiverId is string && data.receiverId.size() <= 128 &&
+             data.status in ['pending', 'accepted', 'declined'];
+    }
+
+    match /interests/{interestId} {
+      allow read: if isSignedIn() && (isOwner(existing().senderId) || isOwner(existing().receiverId));
+      allow create: if isSignedIn() && isValidInterest(incoming()) && incoming().status == 'pending' && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && 
+                       isOwner(existing().receiverId) && 
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
+                       incoming().status in ['accepted', 'declined'];
+      allow delete: if false;
+    }
+
+    // Messaging Helpers
+    function isParticipant(participants) {
+      return isSignedIn() && (request.auth.uid in participants);
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if isParticipant(existing().participants);
+      // Conversations are created by the system/client when an interest is accepted
+      allow create: if isSignedIn() && 
+                       isParticipant(incoming().participants) &&
+                       incoming().participants.size() == 2;
+      allow update: if isParticipant(existing().participants) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['lastMessage', 'updatedAt']);
+    }
+
+    match /conversations/{conversationId}/messages/{messageId} {
+      allow read: if isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants);
+      allow create: if isSignedIn() &&
+                       isOwner(incoming().senderId) &&
+                       isParticipant(get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants) &&
+                       incoming().text is string && incoming().text.size() <= 2000 &&
+                       incoming().createdAt == request.time;
+    }
+  }
+}
